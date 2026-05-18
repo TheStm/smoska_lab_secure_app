@@ -12,7 +12,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout source code
+        uses: actions/checkout@v4
 
       - name: Prepare variables
         id: vars
@@ -39,3 +40,26 @@ jobs:
             -e BRANCH="${{ steps.vars.outputs.branch }}" \
             -v ${{ github.workspace }}:/opt/sources \
             mixeway/scanner:latest
+
+      - name: Display report
+        run: |
+          ls -lah
+          cat mixeway_sast_report.json | jq .
+
+      - name: Fail if vulnerabilities found
+        run: |
+          if [ ! -f mixeway_sast_report.json ]; then
+            echo "mixeway_sast_report.json not found"
+            exit 1
+          fi
+
+          VULNS=$(jq '[.[] | select(.severity == "Medium" or .severity == "High" or .severity == "Critical")] | length' mixeway_sast_report.json)
+
+          echo "Detected Medium/High/Critical vulnerabilities: $VULNS"
+
+          if [ "$VULNS" -gt 0 ]; then
+            echo "Security vulnerabilities detected - failing pipeline"
+            exit 1
+          fi
+
+          echo "No Medium/High/Critical vulnerabilities found"
